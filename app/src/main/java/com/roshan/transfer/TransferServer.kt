@@ -7,118 +7,1000 @@ import java.net.ServerSocket
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-class TransferServer(private val ctx: Context) : NanoHTTPD(findFreePort()) {
-    private val dir = File(ctx.filesDir, "transfers").apply { mkdirs() }
+class TransferServer(
+    private val ctx: Context
+) : NanoHTTPD(findFreePort()) {
+
+    private val dir = File(
+        ctx.filesDir,
+        "transfers"
+    ).apply {
+        mkdirs()
+    }
+
 
     companion object {
+
         fun findFreePort(): Int {
-            ServerSocket(0).use { return it.localPort }
+            ServerSocket(0).use {
+                return it.localPort
+            }
         }
     }
 
-    fun localFiles(): List<File> = dir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
 
-    fun importFromUri(uri: android.net.Uri, requestedName: String): File {
-        val target = uniqueFile(File(dir, safeName(requestedName)))
-        ctx.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Unable to read selected file" }
-            target.outputStream().use { out -> input.copyTo(out, 1024 * 64) }
-        }
+    // =========================================================
+    // LOCAL FILES
+    // =========================================================
+
+    fun localFiles(): List<File> {
+
+        return dir
+            .listFiles()
+            ?.filter {
+                it.isFile
+            }
+            ?.sortedByDescending {
+                it.lastModified()
+            }
+            ?: emptyList()
+    }
+
+
+    // =========================================================
+    // IMPORT FILE FROM PHONE
+    // =========================================================
+
+    fun importFromUri(
+        uri: android.net.Uri,
+        requestedName: String
+    ): File {
+
+        val target =
+            uniqueFile(
+                File(
+                    dir,
+                    safeName(requestedName)
+                )
+            )
+
+
+        ctx.contentResolver
+            .openInputStream(uri)
+            .use { input ->
+
+                requireNotNull(input) {
+                    "Unable to read selected file"
+                }
+
+
+                target
+                    .outputStream()
+                    .use { output ->
+
+                        input.copyTo(
+                            output,
+                            1024 * 64
+                        )
+                    }
+            }
+
+
         return target
     }
 
 
-    override fun serve(session: IHTTPSession): Response {
+    // =========================================================
+    // HTTP SERVER
+    // =========================================================
+
+    override fun serve(
+        session: IHTTPSession
+    ): Response {
+
         return try {
+
             when (session.method) {
-                Method.GET -> when {
-                    session.uri == "/api/info" -> json("{"name":"TRANSFER","version":"1.1","quality":"original"}")
-                    session.uri == "/api/files" -> {
-                        val body = localFiles().joinToString(",", "[", "]") {
-                            val n = it.name.replace("\", "\\").replace(""", "\"")
-                            "{"name":"$n","size":${it.length()},"modified":${it.lastModified()}}"
+
+                // -------------------------------------------------
+                // GET
+                // -------------------------------------------------
+
+                Method.GET -> {
+
+                    when {
+
+                        session.uri == "/api/info" -> {
+
+                            json(
+                                """{"name":"TRANSFER","version":"1.1","quality":"original"}"""
+                            )
                         }
-                        json(body)
+
+
+                        session.uri == "/api/files" -> {
+
+                            val body =
+                                localFiles()
+                                    .joinToString(
+                                        ",",
+                                        "[",
+                                        "]"
+                                    ) { file ->
+
+                                        val name =
+                                            file.name
+                                                .replace(
+                                                    "\\",
+                                                    "\\\\"
+                                                )
+                                                .replace(
+                                                    "\"",
+                                                    "\\\""
+                                                )
+
+
+                                        """{"name":"$name","size":${file.length()},"modified":${file.lastModified()}}"""
+                                    }
+
+
+                            json(body)
+                        }
+
+
+                        session.uri == "/download" -> {
+
+                            download(session)
+                        }
+
+
+                        else -> {
+
+                            newFixedLengthResponse(
+                                Response.Status.OK,
+                                "text/html; charset=utf-8",
+                                desktopHtml()
+                            )
+                        }
                     }
-                    session.uri == "/download" -> download(session)
-                    else -> newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", desktopHtml())
                 }
-                Method.POST -> when {
-                    session.uri == "/upload" -> upload(session)
-                    session.uri == "/delete" -> delete(session)
-                    else -> newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
+
+
+                // -------------------------------------------------
+                // POST
+                // -------------------------------------------------
+
+                Method.POST -> {
+
+                    when {
+
+                        session.uri == "/upload" -> {
+
+                            upload(session)
+                        }
+
+
+                        session.uri == "/delete" -> {
+
+                            delete(session)
+                        }
+
+
+                        else -> {
+
+                            newFixedLengthResponse(
+                                Response.Status.NOT_FOUND,
+                                "text/plain",
+                                "Not found"
+                            )
+                        }
+                    }
                 }
-                else -> newFixedLengthResponse(Response.Status.METHOD_NOT_ALLOWED, "text/plain", "Method not allowed")
+
+
+                else -> {
+
+                    newFixedLengthResponse(
+                        Response.Status.METHOD_NOT_ALLOWED,
+                        "text/plain",
+                        "Method not allowed"
+                    )
+                }
             }
+
+
         } catch (e: Exception) {
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/plain", e.message ?: "Transfer error")
+
+            newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                e.message ?: "Transfer error"
+            )
         }
     }
 
-    private fun upload(s: IHTTPSession): Response {
-        val name = safeName(s.headers["x-file-name"] ?: "file_${System.currentTimeMillis()}")
-        val length = s.headers["content-length"]?.toLongOrNull() ?: -1L
-        val target = uniqueFile(File(dir, name))
-        target.outputStream().use { out ->
-            val input = s.inputStream
-            input.copyTo(out, 1024 * 64)
+
+    // =========================================================
+    // UPLOAD FROM PC
+    // =========================================================
+
+    private fun upload(
+        session: IHTTPSession
+    ): Response {
+
+        val name =
+            safeName(
+                session.headers["x-file-name"]
+                    ?: "file_${System.currentTimeMillis()}"
+            )
+
+
+        val length =
+            session.headers["content-length"]
+                ?.toLongOrNull()
+                ?: -1L
+
+
+        val target =
+            uniqueFile(
+                File(
+                    dir,
+                    name
+                )
+            )
+
+
+        target
+            .outputStream()
+            .use { output ->
+
+                session.inputStream.copyTo(
+                    output,
+                    1024 * 64
+                )
+            }
+
+
+        return json(
+            """{"ok":true,"name":"${target.name.jsonEscape()}","size":${target.length()},"expected":$length}"""
+        )
+    }
+
+
+    // =========================================================
+    // DOWNLOAD TO PC
+    // =========================================================
+
+    private fun download(
+        session: IHTTPSession
+    ): Response {
+
+        val raw =
+            session.parameters["name"]
+                ?.firstOrNull()
+                ?: return bad("Missing file")
+
+
+        val file =
+            File(
+                dir,
+                safeName(raw)
+            )
+
+
+        if (
+            !file.exists() ||
+            !file.isFile
+        ) {
+
+            return newFixedLengthResponse(
+                Response.Status.NOT_FOUND,
+                "text/plain",
+                "Not found"
+            )
         }
-        return json("{"ok":true,"name":"${target.name.jsonEscape()}","size":${target.length()},"expected":$length}")
-    }
 
-    private fun download(s: IHTTPSession): Response {
-        val raw = s.parameters["name"]?.firstOrNull() ?: return bad("Missing file")
-        val file = File(dir, safeName(raw))
-        if (!file.exists() || !file.isFile) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Not found")
-        return newChunkedResponse(Response.Status.OK, contentType(file.name), file.inputStream()).apply {
-            addHeader("Content-Disposition", "attachment; filename*=UTF-8''${URLEncoder.encode(file.name, StandardCharsets.UTF_8).replace("+", "%20")}")
-            addHeader("Content-Length", file.length().toString())
-            addHeader("Cache-Control", "no-store")
+
+        return newChunkedResponse(
+            Response.Status.OK,
+            contentType(file.name),
+            file.inputStream()
+        ).apply {
+
+            addHeader(
+                "Content-Disposition",
+                "attachment; filename*=UTF-8''${
+                    URLEncoder
+                        .encode(
+                            file.name,
+                            StandardCharsets.UTF_8
+                        )
+                        .replace(
+                            "+",
+                            "%20"
+                        )
+                }"
+            )
+
+
+            addHeader(
+                "Content-Length",
+                file.length().toString()
+            )
+
+
+            addHeader(
+                "Cache-Control",
+                "no-store"
+            )
         }
     }
 
-    private fun delete(s: IHTTPSession): Response {
-        val raw = s.parameters["name"]?.firstOrNull() ?: return bad("Missing file")
-        val f = File(dir, safeName(raw))
-        return json("{"ok":${f.delete()}}")
+
+    // =========================================================
+    // DELETE
+    // =========================================================
+
+    private fun delete(
+        session: IHTTPSession
+    ): Response {
+
+        val raw =
+            session.parameters["name"]
+                ?.firstOrNull()
+                ?: return bad("Missing file")
+
+
+        val file =
+            File(
+                dir,
+                safeName(raw)
+            )
+
+
+        return json(
+            """{"ok":${file.delete()}}"""
+        )
     }
 
-    private fun json(body: String) = newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", body).apply {
-        addHeader("Access-Control-Allow-Origin", "*")
-        addHeader("Cache-Control", "no-store")
-    }
-    private fun bad(message: String) = newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", message)
-    private fun safeName(name: String) = File(name.replace('\u0000'.toString(), "")).name.ifBlank { "file" }
-    private fun uniqueFile(base: File): File {
-        if (!base.exists()) return base
-        val stem = base.nameWithoutExtension
-        val ext = if (base.extension.isBlank()) "" else ".${base.extension}"
-        var i = 2
-        var f = File(base.parentFile, "$stem ($i)$ext")
-        while (f.exists()) f = File(base.parentFile, "$stem (${i++})$ext")
-        return f
-    }
-    private fun contentType(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
-        "jpg", "jpeg" -> "image/jpeg"; "png" -> "image/png"; "webp" -> "image/webp"; "gif" -> "image/gif";
-        "mp4" -> "video/mp4"; "mov" -> "video/quicktime"; "pdf" -> "application/pdf"; "txt" -> "text/plain";
-        else -> "application/octet-stream"
-    }
-    private fun String.jsonEscape() = replace("\", "\\").replace(""", "\"")
 
-    private fun desktopHtml() = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TRANSFER</title>
+    // =========================================================
+    // JSON RESPONSE
+    // =========================================================
+
+    private fun json(
+        body: String
+    ): Response {
+
+        return newFixedLengthResponse(
+            Response.Status.OK,
+            "application/json; charset=utf-8",
+            body
+        ).apply {
+
+            addHeader(
+                "Access-Control-Allow-Origin",
+                "*"
+            )
+
+
+            addHeader(
+                "Cache-Control",
+                "no-store"
+            )
+        }
+    }
+
+
+    // =========================================================
+    // BAD REQUEST
+    // =========================================================
+
+    private fun bad(
+        message: String
+    ): Response {
+
+        return newFixedLengthResponse(
+            Response.Status.BAD_REQUEST,
+            "text/plain",
+            message
+        )
+    }
+
+
+    // =========================================================
+    // SAFE FILE NAME
+    // =========================================================
+
+    private fun safeName(
+        name: String
+    ): String {
+
+        return File(
+            name.replace(
+                '\u0000'.toString(),
+                ""
+            )
+        )
+            .name
+            .ifBlank {
+                "file"
+            }
+    }
+
+
+    // =========================================================
+    // UNIQUE FILE
+    // =========================================================
+
+    private fun uniqueFile(
+        original: File
+    ): File {
+
+        if (!original.exists()) {
+            return original
+        }
+
+
+        val base =
+            original.nameWithoutExtension
+
+
+        val extension =
+            original.extension
+
+
+        var index = 1
+
+
+        while (true) {
+
+            val newName =
+                if (extension.isBlank()) {
+
+                    "$base ($index)"
+
+                } else {
+
+                    "$base ($index).$extension"
+                }
+
+
+            val candidate =
+                File(
+                    original.parentFile,
+                    newName
+                )
+
+
+            if (!candidate.exists()) {
+                return candidate
+            }
+
+
+            index++
+        }
+    }
+
+
+    // =========================================================
+    // JSON ESCAPE
+    // =========================================================
+
+    private fun String.jsonEscape(): String {
+
+        return replace(
+            "\\",
+            "\\\\"
+        ).replace(
+            "\"",
+            "\\\""
+        )
+    }
+
+
+    // =========================================================
+    // CONTENT TYPE
+    // =========================================================
+
+    private fun contentType(
+        name: String
+    ): String {
+
+        return when (
+            name.substringAfterLast(
+                ".",
+                ""
+            ).lowercase()
+        ) {
+
+            "jpg",
+            "jpeg" ->
+                "image/jpeg"
+
+            "png" ->
+                "image/png"
+
+            "gif" ->
+                "image/gif"
+
+            "webp" ->
+                "image/webp"
+
+            "mp4" ->
+                "video/mp4"
+
+            "mkv" ->
+                "video/x-matroska"
+
+            "mp3" ->
+                "audio/mpeg"
+
+            "wav" ->
+                "audio/wav"
+
+            "pdf" ->
+                "application/pdf"
+
+            "txt" ->
+                "text/plain"
+
+            "html" ->
+                "text/html"
+
+            "zip" ->
+                "application/zip"
+
+            else ->
+                "application/octet-stream"
+        }
+    }
+
+
+    // =========================================================
+    // DESKTOP WEB PAGE
+    // =========================================================
+
+    private fun desktopHtml(): String {
+
+        return """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>TRANSFER — Made by Roshan</title>
+
 <style>
-*{box-sizing:border-box}body{margin:0;background:#080a10;color:#f5f7ff;font-family:Inter,system-ui,Arial;padding:28px}main{max-width:1040px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.brand{font-size:28px;font-weight:800}.muted{color:#9ba5ba}.pill{padding:8px 12px;border:1px solid #2a3142;border-radius:999px;background:#121620}.card{background:#121620;border:1px solid #2a3142;border-radius:26px;padding:26px;margin-bottom:18px;box-shadow:0 18px 60px #0007}.hero{display:grid;grid-template-columns:1fr 1fr;gap:18px}.drop{min-height:260px;border:2px dashed #3b455d;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0e121b;text-align:center}.mascot{font-size:64px;animation:b 1.5s ease-in-out infinite}@keyframes b{50%{transform:translateY(-10px) rotate(5deg)}}button{border:0;border-radius:13px;padding:12px 17px;font-weight:750;cursor:pointer;background:#8b6cff;color:#fff}.ghost{background:#1a2030}.files{display:grid;gap:10px}.file{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px;background:#181d2a;border-radius:16px}.actions{display:flex;gap:8px}.note{font-size:13px;color:#9ba5ba}.bar{height:8px;background:#252c3b;border-radius:20px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#8b6cff,#36d6ff);width:0}input{display:none}@media(max-width:760px){.hero{grid-template-columns:1fr}.top{align-items:flex-start;gap:12px;flex-direction:column}}
-</style></head><body><main>
-<div class="top"><div><div class="brand">⚡ TRANSFER</div><div class="muted">Move. Share. Done. · Made by Roshan</div></div><div class="pill">● Local only</div></div>
-<div class="card"><div class="hero"><div class="drop" id="drop"><div class="mascot">⚡</div><h2>Send to phone</h2><p class="muted">Original files · No compression</p><label><button>Choose files</button><input id="pick" type="file" multiple></label><div class="note">or drag & drop here</div></div><div><h2>Phone storage</h2><p class="muted">Files sent to this device appear below.</p><div id="progress"></div><button class="ghost" onclick="load()">Refresh files</button></div></div></div>
-<div class="card"><div class="top"><h2 style="margin:0">Files on phone</h2><span id="count" class="muted"></span></div><div id="list" class="files">Loading…</div></div>
-</main><script>
-const pick=document.getElementById('pick'),drop=document.getElementById('drop');pick.onchange=()=>send([...pick.files]);['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.style.borderColor='#8b6cff'}));['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.style.borderColor='#3b455d'}));drop.addEventListener('drop',e=>send([...e.dataTransfer.files]));
-function fmt(n){let u=['B','KB','MB','GB','TB'],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
-async function send(files){for(const f of files){let p=document.getElementById('progress');p.innerHTML='<p>'+f.name+' · '+fmt(f.size)+'</p><div class="bar"><i id="bar"></i></div><p class="note">Uploading original file…</p>';await new Promise((resolve,reject)=>{let x=new XMLHttpRequest();x.open('POST','/upload');x.setRequestHeader('x-file-name',f.name);x.upload.onprogress=e=>{if(e.lengthComputable)document.getElementById('bar').style.width=(e.loaded/e.total*100)+'%'};x.onload=()=>x.status<300?resolve():reject();x.onerror=reject;x.send(f)}).catch(()=>alert('Upload failed: '+f.name));}pick.value='';load()}
-async function load(){let a=await fetch('/api/files').then(r=>r.json());document.getElementById('count').textContent=a.length+' file'+(a.length==1?'':'s');document.getElementById('list').innerHTML=a.map(x=>'<div class="file"><div>📄 <b>'+esc(x.name)+'</b><div class="note">'+fmt(x.size)+'</div></div><div class="actions"><a href="/download?name='+encodeURIComponent(x.name)+'"><button>Download</button></a><button class="ghost" onclick="del(''+encodeURIComponent(x.name)+'')">Delete</button></div></div>').join('')||'<div class="muted">No files yet.</div>'}
-async function del(n){if(confirm('Delete this file from phone?')){await fetch('/delete?name='+n,{method:'POST'});load()}}function esc(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}load();
-</script></body></html>
+
+body {
+    margin: 0;
+    padding: 0;
+    background: #080a10;
+    color: #f5f7ff;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    max-width: 900px;
+    margin: auto;
+    padding: 30px;
+}
+
+.card {
+    background: #121620;
+    border-radius: 22px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+.muted {
+    color: #9ba5ba;
+}
+
+input[type=file] {
+    margin: 15px 0;
+}
+
+button {
+    background: #181d2a;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+button:hover {
+    opacity: 0.8;
+}
+
+.file {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid #292f3d;
+}
+
+.progress {
+    width: 100%;
+    height: 8px;
+    background: #242a38;
+    border-radius: 10px;
+    margin-top: 12px;
+}
+
+.bar {
+    height: 100%;
+    width: 0%;
+    background: #48e39a;
+    border-radius: 10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>⚡ TRANSFER</h1>
+
+<div class="muted">
+Move. Share. Done. · Made by Roshan
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>📤 Send files to phone</h2>
+
+<input
+    id="fileInput"
+    type="file"
+    multiple
+>
+
+<br>
+
+<button onclick="uploadFiles()">
+Upload Files
+</button>
+
+<div class="progress">
+<div
+    id="bar"
+    class="bar"
+></div>
+</div>
+
+<p
+    id="status"
+    class="muted"
+></p>
+
+</div>
+
+
+<div class="card">
+
+<h2>📁 Files on phone</h2>
+
+<div id="files">
+Loading...
+</div>
+
+</div>
+
+</div>
+
+
+<script>
+
+async function loadFiles() {
+
+    const response =
+        await fetch('/api/files');
+
+    const files =
+        await response.json();
+
+    const container =
+        document.getElementById('files');
+
+    container.innerHTML = '';
+
+    if (files.length === 0) {
+
+        container.innerHTML =
+            '<p class="muted">No files yet.</p>';
+
+        return;
+    }
+
+
+    files.forEach(file => {
+
+        const row =
+            document.createElement('div');
+
+        row.className = 'file';
+
+
+        const info =
+            document.createElement('div');
+
+        info.innerHTML =
+            '<b>' +
+            escapeHtml(file.name) +
+            '</b><br>' +
+            '<span class="muted">' +
+            formatSize(file.size) +
+            '</span>';
+
+
+        const actions =
+            document.createElement('div');
+
+
+        const download =
+            document.createElement('button');
+
+        download.innerText =
+            'DOWNLOAD';
+
+        download.onclick = function() {
+
+            window.location =
+                '/download?name=' +
+                encodeURIComponent(file.name);
+        };
+
+
+        const del =
+            document.createElement('button');
+
+        del.innerText =
+            'DELETE';
+
+        del.style.marginLeft =
+            '8px';
+
+
+        del.onclick = async function() {
+
+            await fetch(
+                '/delete?name=' +
+                encodeURIComponent(file.name),
+                {
+                    method: 'POST'
+                }
+            );
+
+            loadFiles();
+        };
+
+
+        actions.appendChild(download);
+        actions.appendChild(del);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+
+        container.appendChild(row);
+    });
+}
+
+
+async function uploadFiles() {
+
+    const input =
+        document.getElementById('fileInput');
+
+    const files =
+        input.files;
+
+    if (!files.length) {
+
+        alert(
+            'Please select files first.'
+        );
+
+        return;
+    }
+
+
+    const bar =
+        document.getElementById('bar');
+
+    const status =
+        document.getElementById('status');
+
+
+    for (
+        let i = 0;
+        i < files.length;
+        i++
+    ) {
+
+        const file =
+            files[i];
+
+
+        status.innerText =
+            'Uploading ' +
+            (i + 1) +
+            ' / ' +
+            files.length +
+            ': ' +
+            file.name;
+
+
+        await uploadSingle(
+            file,
+            bar
+        );
+    }
+
+
+    bar.style.width =
+        '100%';
+
+
+    status.innerText =
+        'All files uploaded successfully.';
+
+
+    loadFiles();
+}
+
+
+function uploadSingle(
+    file,
+    bar
+) {
+
+    return new Promise(
+        function(resolve, reject) {
+
+            const xhr =
+                new XMLHttpRequest();
+
+
+            xhr.open(
+                'POST',
+                '/upload'
+            );
+
+
+            xhr.setRequestHeader(
+                'X-File-Name',
+                encodeURIComponent(
+                    file.name
+                )
+            );
+
+
+            xhr.upload.onprogress =
+                function(event) {
+
+                    if (event.lengthComputable) {
+
+                        const percent =
+                            (
+                                event.loaded /
+                                event.total
+                            ) * 100;
+
+                        bar.style.width =
+                            percent + '%';
+                    }
+                };
+
+
+            xhr.onload =
+                function() {
+
+                    if (
+                        xhr.status >= 200 &&
+                        xhr.status < 300
+                    ) {
+
+                        resolve();
+
+                    } else {
+
+                        reject(
+                            new Error(
+                                'Upload failed'
+                            )
+                        );
+                    }
+                };
+
+
+            xhr.onerror =
+                function() {
+
+                    reject(
+                        new Error(
+                            'Network error'
+                        )
+                    );
+                };
+
+
+            xhr.send(file);
+        }
+    );
+}
+
+
+function formatSize(bytes) {
+
+    const units =
+        [
+            'B',
+            'KB',
+            'MB',
+            'GB',
+            'TB'
+        ];
+
+
+    let i = 0;
+
+
+    while (
+        bytes >= 1024 &&
+        i < units.length - 1
+    ) {
+
+        bytes /= 1024;
+        i++;
+    }
+
+
+    return (
+        bytes.toFixed(1) +
+        ' ' +
+        units[i]
+    );
+}
+
+
+function escapeHtml(value) {
+
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+
+loadFiles();
+
+</script>
+
+</body>
+</html>
 """.trimIndent()
+    }
 }
