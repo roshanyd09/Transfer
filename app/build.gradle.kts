@@ -1,4 +1,6 @@
-plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+plugins {
+    id("com.android.application")
+}
 
 android {
     namespace = "com.roshan.transfer"
