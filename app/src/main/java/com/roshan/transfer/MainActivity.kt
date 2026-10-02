@@ -33,7 +33,7 @@ class MainActivity : Activity() {
     private lateinit var address: TextView
     private lateinit var mascot: TextView
     private lateinit var connectButton: Button
-    private lateinit var fileList: LinearLayout
+    private lateinit var receivedFilesList: LinearLayout
 
     private val bg = Color.rgb(8, 10, 16)
     private val surface = Color.rgb(18, 22, 32)
