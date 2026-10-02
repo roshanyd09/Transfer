@@ -33,52 +33,103 @@ class MainActivity : Activity() {
     private lateinit var address: TextView
     private lateinit var mascot: TextView
     private lateinit var connectButton: Button
+
+    // IMPORTANT:
+    // This is named receivedFilesList instead of fileList
+    // because Android Activity already has a fileList() function.
     private lateinit var receivedFilesList: LinearLayout
+
+
+    // =========================================================
+    // COLORS
+    // =========================================================
 
     private val bg = Color.rgb(8, 10, 16)
     private val surface = Color.rgb(18, 22, 32)
     private val surface2 = Color.rgb(24, 29, 42)
+
     private val text = Color.rgb(245, 247, 255)
     private val muted = Color.rgb(155, 165, 186)
+
     private val green = Color.rgb(72, 227, 154)
     private val red = Color.rgb(255, 100, 124)
+    private val yellow = Color.rgb(255, 190, 70)
 
+
+    // =========================================================
+    // ON CREATE
+    // =========================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
 
         buildUi()
+
         requestCameraIfNeeded()
+
         startServer()
     }
 
 
+    // =========================================================
+    // BUILD UI
+    // =========================================================
+
     private fun buildUi() {
 
         val root = LinearLayout(this).apply {
+
             orientation = LinearLayout.VERTICAL
-            setPadding(22, 20, 22, 16)
+
+            setPadding(
+                22,
+                20,
+                22,
+                16
+            )
+
             setBackgroundColor(bg)
         }
+
 
         val scroll = ScrollView(this).apply {
+
             setBackgroundColor(bg)
         }
 
+
         val content = LinearLayout(this).apply {
+
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 20)
+
+            setPadding(
+                0,
+                0,
+                0,
+                20
+            )
         }
 
 
-        // ---------------- BRAND ----------------
+        // =====================================================
+        // BRAND
+        // =====================================================
 
         val brand = TextView(this).apply {
-            this.text = "⚡ TRANSFER"
-            setTextColor(this@MainActivity.text)
+
+            text = "⚡ TRANSFER"
+
+            setTextColor(
+                this@MainActivity.text
+            )
+
             textSize = 30f
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+
+            typeface =
+                android.graphics.Typeface.DEFAULT_BOLD
         }
+
 
         content.addView(
             brand,
@@ -87,27 +138,46 @@ class MainActivity : Activity() {
 
 
         val tagline = TextView(this).apply {
-            this.text = "Move. Share. Done. · Made by Roshan"
+
+            text =
+                "Move. Share. Done. · Made by Roshan"
+
             setTextColor(muted)
+
             textSize = 14f
         }
 
+
         content.addView(
             tagline,
-            lp(-1, -2, 0f, 3, 0, 0, 0)
+            lp(
+                -1,
+                -2,
+                0f,
+                3,
+                0,
+                0,
+                0
+            )
         )
 
 
-        // ---------------- HERO CARD ----------------
+        // =====================================================
+        // HERO CARD
+        // =====================================================
 
         val hero = card()
 
 
         mascot = TextView(this).apply {
+
             text = "⚡"
+
             textSize = 58f
+
             gravity = Gravity.CENTER
         }
+
 
         hero.addView(
             mascot,
@@ -116,11 +186,16 @@ class MainActivity : Activity() {
 
 
         status = TextView(this).apply {
+
             text = "● Starting…"
+
             textSize = 17f
+
             gravity = Gravity.CENTER
+
             setTextColor(green)
         }
+
 
         hero.addView(
             status,
@@ -129,77 +204,147 @@ class MainActivity : Activity() {
 
 
         address = TextView(this).apply {
+
             text = ""
+
             textSize = 15f
+
             gravity = Gravity.CENTER
+
             setTextColor(muted)
         }
 
+
         hero.addView(
             address,
-            lp(-1, -2, 0f, 5, 0, 0, 0)
+            lp(
+                -1,
+                -2,
+                0f,
+                5,
+                0,
+                0,
+                0
+            )
         )
 
 
-        // ---------------- ACTION BUTTONS ----------------
+        // =====================================================
+        // ACTION BUTTONS
+        // =====================================================
 
         val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+
+            orientation =
+                LinearLayout.HORIZONTAL
+
             gravity = Gravity.CENTER
-            setPadding(0, 14, 0, 0)
+
+            setPadding(
+                0,
+                14,
+                0,
+                0
+            )
         }
 
 
-        val scan = button("▣ SCAN QR") {
+        val scanButton = button("▣ SCAN QR") {
+
             scanQr()
         }
 
-        val copy = button("COPY IP") {
+
+        val copyButton = button("COPY IP") {
+
             copyIp()
         }
 
-        val qr = button("SHOW QR") {
+
+        val qrButton = button("SHOW QR") {
+
             showQr()
         }
 
 
         actions.addView(
-            scan,
-            lp(0, 52, 1f, 0, 0, 0, 7)
+            scanButton,
+            lp(
+                0,
+                52,
+                1f,
+                0,
+                0,
+                0,
+                7
+            )
         )
 
-        actions.addView(
-            copy,
-            lp(0, 52, 1f, 0, 7, 0, 7)
-        )
 
         actions.addView(
-            qr,
-            lp(0, 52, 1f, 0, 7, 0, 0)
+            copyButton,
+            lp(
+                0,
+                52,
+                1f,
+                0,
+                7,
+                0,
+                7
+            )
+        )
+
+
+        actions.addView(
+            qrButton,
+            lp(
+                0,
+                52,
+                1f,
+                0,
+                7,
+                0,
+                0
+            )
         )
 
 
         hero.addView(actions)
 
 
-        // ---------------- CONNECT BUTTON ----------------
+        // =====================================================
+        // CONNECT / DISCONNECT
+        // =====================================================
 
         connectButton = button("DISCONNECT") {
+
             stopServer()
         }
 
+
         hero.addView(
             connectButton,
-            lp(-1, 50, 0f, 12, 0, 0, 0)
+            lp(
+                -1,
+                50,
+                0f,
+                12,
+                0,
+                0,
+                0
+            )
         )
 
 
         content.addView(hero)
 
 
-        // ---------------- SEND CARD ----------------
+        // =====================================================
+        // SEND FROM PHONE
+        // =====================================================
 
         val sendCard = card()
+
 
         sendCard.addView(
             sectionTitle("SEND FROM PHONE")
@@ -207,96 +352,137 @@ class MainActivity : Activity() {
 
 
         val sendInfo = TextView(this).apply {
+
             text =
                 "Choose original files. TRANSFER never resizes or recompresses them."
+
             setTextColor(muted)
+
             textSize = 13f
         }
 
+
         sendCard.addView(
             sendInfo,
-            lp(-1, -2, 0f, 0, 0, 12, 0)
+            lp(
+                -1,
+                -2,
+                0f,
+                0,
+                0,
+                0,
+                12
+            )
         )
 
 
         sendCard.addView(
             button("📤 SELECT FILES") {
+
                 pickFiles()
             },
-            lp(-1, 52)
+            lp(
+                -1,
+                52
+            )
         )
 
 
         content.addView(sendCard)
 
 
-        // ---------------- RECEIVED FILES ----------------
+        // =====================================================
+        // RECEIVED FILES
+        // =====================================================
 
         val receiveCard = card()
+
 
         receiveCard.addView(
             sectionTitle("RECEIVED FILES")
         )
 
 
-        fileList = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        receivedFilesList =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.VERTICAL
+            }
 
 
         receiveCard.addView(
-            fileList,
-            lp(-1, -2)
+            receivedFilesList,
+            lp(
+                -1,
+                -2
+            )
         )
 
 
         content.addView(receiveCard)
 
 
-        // ---------------- ABOUT ----------------
+        // =====================================================
+        // ABOUT
+        // =====================================================
 
-        val more = card()
+        val aboutCard = card()
 
-        more.addView(
+
+        aboutCard.addView(
             sectionTitle("ABOUT")
         )
 
 
         val aboutText = TextView(this).apply {
+
             text =
                 "Local Wi-Fi / hotspot transfer\n\n" +
                 "No cloud • No compression • No account\n\n" +
                 "Version 1.1"
 
             setTextColor(muted)
+
             textSize = 13f
         }
 
 
-        more.addView(
+        aboutCard.addView(
             aboutText,
-            lp(-1, -2)
+            lp(
+                -1,
+                -2
+            )
         )
 
 
-        content.addView(more)
+        content.addView(aboutCard)
 
 
-        // ---------------- FINAL UI ----------------
+        // =====================================================
+        // FINAL LAYOUT
+        // =====================================================
 
         scroll.addView(content)
 
+
         root.addView(
             scroll,
-            lp(-1, 0, 1f)
+            lp(
+                -1,
+                0,
+                1f
+            )
         )
+
 
         setContentView(root)
     }
 
 
     // =========================================================
-    // SERVER
+    // START SERVER
     // =========================================================
 
     private fun startServer() {
@@ -304,16 +490,19 @@ class MainActivity : Activity() {
         try {
 
             if (server?.isAlive == true) {
+
                 return
             }
 
 
-            server = TransferServer(this).also {
-                it.start(
-                    NanoHTTPD.SOCKET_READ_TIMEOUT,
-                    false
-                )
-            }
+            server =
+                TransferServer(this).also {
+
+                    it.start(
+                        NanoHTTPD.SOCKET_READ_TIMEOUT,
+                        false
+                    )
+                }
 
 
             val ip = getIp()
@@ -321,14 +510,19 @@ class MainActivity : Activity() {
 
             if (ip == "Not connected") {
 
-                status.text = "● Waiting for network"
-                status.setTextColor(Color.rgb(255, 190, 70))
+                status.text =
+                    "● Waiting for network"
 
-                address.text = "Connect to Wi-Fi or hotspot"
+                status.setTextColor(yellow)
+
+                address.text =
+                    "Connect to Wi-Fi or hotspot"
 
             } else {
 
-                status.text = "● READY — Connected"
+                status.text =
+                    "● READY — Connected"
+
                 status.setTextColor(green)
 
                 address.text =
@@ -336,19 +530,23 @@ class MainActivity : Activity() {
             }
 
 
-            connectButton.text = "DISCONNECT"
+            connectButton.text =
+                "DISCONNECT"
+
 
             connectButton.setOnClickListener {
+
                 stopServer()
             }
 
 
-            loadFiles()
-
+            loadReceivedFiles()
 
         } catch (e: Exception) {
 
-            status.text = "● Server error"
+            status.text =
+                "● Server error"
+
             status.setTextColor(red)
 
             address.text =
@@ -357,30 +555,40 @@ class MainActivity : Activity() {
     }
 
 
+    // =========================================================
+    // STOP SERVER
+    // =========================================================
+
     private fun stopServer() {
 
         server?.stop()
+
         server = null
 
 
-        status.text = "● DISCONNECTED"
+        status.text =
+            "● DISCONNECTED"
+
         status.setTextColor(red)
+
 
         address.text =
             "Tap CONNECT to start again"
 
 
-        connectButton.text = "CONNECT"
+        connectButton.text =
+            "CONNECT"
 
 
         connectButton.setOnClickListener {
+
             startServer()
         }
     }
 
 
     // =========================================================
-    // FIND PHONE IP
+    // GET PHONE IP
     // =========================================================
 
     private fun getIp(): String {
@@ -396,23 +604,27 @@ class MainActivity : Activity() {
                 val network =
                     interfaces.nextElement()
 
+
                 val addresses =
                     network.inetAddresses
 
 
                 while (addresses.hasMoreElements()) {
 
-                    val addr =
+                    val address =
                         addresses.nextElement()
 
 
                     if (
-                        !addr.isLoopbackAddress &&
-                        addr is Inet4Address &&
-                        addr.hostAddress?.startsWith("169.254") != true
+                        !address.isLoopbackAddress &&
+                        address is Inet4Address &&
+                        address.hostAddress?.startsWith(
+                            "169.254"
+                        ) != true
                     ) {
 
-                        return addr.hostAddress ?: ""
+                        return address.hostAddress
+                            ?: ""
                     }
                 }
             }
@@ -437,11 +649,14 @@ class MainActivity : Activity() {
             address.text.toString()
 
 
-        if (value.startsWith("http")) {
+        if (
+            value.startsWith("http")
+        ) {
 
             val clipboard =
-                getSystemService(CLIPBOARD_SERVICE)
-                        as android.content.ClipboardManager
+                getSystemService(
+                    CLIPBOARD_SERVICE
+                ) as android.content.ClipboardManager
 
 
             clipboard.setPrimaryClip(
@@ -455,6 +670,14 @@ class MainActivity : Activity() {
             Toast.makeText(
                 this,
                 "Address copied",
+                Toast.LENGTH_SHORT
+            ).show()
+
+        } else {
+
+            Toast.makeText(
+                this,
+                "Server address not available",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -475,13 +698,17 @@ class MainActivity : Activity() {
             "Scan a TRANSFER QR code"
         )
 
+
         integrator.setBeepEnabled(true)
 
+
         integrator.setOrientationLocked(false)
+
 
         integrator.setDesiredBarcodeFormats(
             IntentIntegrator.QR_CODE
         )
+
 
         integrator.initiateScan()
     }
@@ -497,7 +724,9 @@ class MainActivity : Activity() {
         data: Intent?
     ) {
 
-        // ---------------- FILE PICKER ----------------
+        // =====================================================
+        // FILE PICKER
+        // =====================================================
 
         if (
             requestCode == 400 &&
@@ -510,13 +739,16 @@ class MainActivity : Activity() {
 
 
             data.data?.let {
+
                 uris.add(it)
             }
 
 
             data.clipData?.let { clip ->
 
-                for (i in 0 until clip.itemCount) {
+                for (
+                    i in 0 until clip.itemCount
+                ) {
 
                     uris.add(
                         clip.getItemAt(i).uri
@@ -547,6 +779,7 @@ class MainActivity : Activity() {
 
 
                         if (target != null) {
+
                             copied++
                         }
 
@@ -562,7 +795,7 @@ class MainActivity : Activity() {
                 ).show()
 
 
-                loadFiles()
+                loadReceivedFiles()
             }
 
 
@@ -570,7 +803,9 @@ class MainActivity : Activity() {
         }
 
 
-        // ---------------- QR RESULT ----------------
+        // =====================================================
+        // QR RESULT
+        // =====================================================
 
         val result =
             IntentIntegrator.parseActivityResult(
@@ -589,7 +824,9 @@ class MainActivity : Activity() {
                 result.contents
 
 
-            if (scanned.startsWith("http")) {
+            if (
+                scanned.startsWith("http")
+            ) {
 
                 Toast.makeText(
                     this,
@@ -645,10 +882,12 @@ class MainActivity : Activity() {
 
                 type = "*/*"
 
+
                 putExtra(
                     Intent.EXTRA_ALLOW_MULTIPLE,
                     true
                 )
+
 
                 addCategory(
                     Intent.CATEGORY_OPENABLE
@@ -708,6 +947,7 @@ class MainActivity : Activity() {
         val ip =
             getIp()
 
+
         val currentServer =
             server
 
@@ -766,10 +1006,11 @@ class MainActivity : Activity() {
                     bitmap.setPixel(
                         x,
                         y,
-                        if (matrix.get(x, y))
+                        if (matrix.get(x, y)) {
                             Color.BLACK
-                        else
+                        } else {
                             Color.WHITE
+                        }
                     )
                 }
             }
@@ -779,6 +1020,7 @@ class MainActivity : Activity() {
                 ImageView(this).apply {
 
                     setImageBitmap(bitmap)
+
 
                     setPadding(
                         24,
@@ -795,12 +1037,14 @@ class MainActivity : Activity() {
                     orientation =
                         LinearLayout.VERTICAL
 
+
                     setPadding(
                         24,
                         20,
                         24,
                         20
                     )
+
 
                     setBackgroundColor(
                         Color.WHITE
@@ -823,14 +1067,18 @@ class MainActivity : Activity() {
 
                     text = url
 
+
                     setTextColor(
                         Color.BLACK
                     )
 
+
                     gravity =
                         Gravity.CENTER
 
+
                     textSize = 14f
+
 
                     setPadding(
                         0,
@@ -851,14 +1099,15 @@ class MainActivity : Activity() {
 
 
             android.app.AlertDialog.Builder(this)
-                .setTitle("Scan to connect")
+                .setTitle(
+                    "Scan to connect"
+                )
                 .setView(box)
                 .setPositiveButton(
                     "Done",
                     null
                 )
                 .show()
-
 
         } catch (e: Exception) {
 
@@ -875,14 +1124,17 @@ class MainActivity : Activity() {
     // LOAD RECEIVED FILES
     // =========================================================
 
-    private fun loadFiles() {
+    private fun loadReceivedFiles() {
 
-        if (!::fileList.isInitialized) {
+        if (
+            !::receivedFilesList.isInitialized
+        ) {
+
             return
         }
 
 
-        fileList.removeAllViews()
+        receivedFilesList.removeAllViews()
 
 
         val files =
@@ -897,9 +1149,12 @@ class MainActivity : Activity() {
                     text =
                         "No files yet. Files uploaded from your PC will appear here."
 
+
                     setTextColor(muted)
 
+
                     textSize = 13f
+
 
                     setPadding(
                         0,
@@ -910,7 +1165,10 @@ class MainActivity : Activity() {
                 }
 
 
-            fileList.addView(empty)
+            receivedFilesList.addView(
+                empty
+            )
+
 
             return
         }
@@ -926,8 +1184,10 @@ class MainActivity : Activity() {
                         orientation =
                             LinearLayout.HORIZONTAL
 
+
                         gravity =
                             Gravity.CENTER_VERTICAL
+
 
                         setPadding(
                             0,
@@ -944,9 +1204,11 @@ class MainActivity : Activity() {
                         text =
                             "📄 ${file.name}\n${size(file.length())}"
 
+
                         setTextColor(
                             this@MainActivity.text
                         )
+
 
                         textSize = 14f
                     }
@@ -965,9 +1227,13 @@ class MainActivity : Activity() {
                 val deleteButton =
                     button("DELETE") {
 
-                        file.delete()
+                        if (file.exists()) {
 
-                        loadFiles()
+                            file.delete()
+                        }
+
+
+                        loadReceivedFiles()
                     }
 
 
@@ -980,7 +1246,9 @@ class MainActivity : Activity() {
                 )
 
 
-                fileList.addView(row)
+                receivedFilesList.addView(
+                    row
+                )
             }
     }
 
@@ -997,14 +1265,18 @@ class MainActivity : Activity() {
 
             text = value
 
+
             setTextColor(
                 this@MainActivity.text
             )
 
+
             textSize = 13f
+
 
             typeface =
                 android.graphics.Typeface.DEFAULT_BOLD
+
 
             setPadding(
                 0,
@@ -1027,6 +1299,7 @@ class MainActivity : Activity() {
             orientation =
                 LinearLayout.VERTICAL
 
+
             setPadding(
                 18,
                 18,
@@ -1034,13 +1307,16 @@ class MainActivity : Activity() {
                 18
             )
 
+
             background =
                 rounded(
                     surface,
                     22f
                 )
 
+
             elevation = 5f
+
 
             layoutParams =
                 lp(
@@ -1069,23 +1345,30 @@ class MainActivity : Activity() {
 
             text = label
 
+
             setTextColor(
                 this@MainActivity.text
             )
 
+
             textSize = 12f
+
 
             isAllCaps = false
 
+
             setOnClickListener {
+
                 action()
             }
+
 
             background =
                 rounded(
                     surface2,
                     15f
                 )
+
 
             stateListAnimator = null
         }
@@ -1151,6 +1434,7 @@ class MainActivity : Activity() {
         var value =
             bytes.toDouble()
 
+
         val units =
             arrayOf(
                 "B",
@@ -1159,6 +1443,7 @@ class MainActivity : Activity() {
                 "GB",
                 "TB"
             )
+
 
         var index = 0
 
@@ -1184,27 +1469,33 @@ class MainActivity : Activity() {
 
 
     // =========================================================
-    // RESUME
+    // ON RESUME
     // =========================================================
 
     override fun onResume() {
 
         super.onResume()
 
-        if (::fileList.isInitialized) {
-            loadFiles()
+
+        if (
+            ::receivedFilesList.isInitialized
+        ) {
+
+            loadReceivedFiles()
         }
     }
 
 
     // =========================================================
-    // DESTROY
+    // ON DESTROY
     // =========================================================
 
     override fun onDestroy() {
 
         server?.stop()
+
         server = null
+
 
         super.onDestroy()
     }
@@ -1226,7 +1517,9 @@ class MainActivity : Activity() {
 
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.CAMERA),
+                arrayOf(
+                    Manifest.permission.CAMERA
+                ),
                 99
             )
         }
